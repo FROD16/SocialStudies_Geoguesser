@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>North Africa Geography Challenge</title>
+  
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: rgba(30, 41, 59, 0.96);
+      --primary: #38bdf8;
+      --accent: #22c55e;
+      --danger: #ef4444;
+      --text: #f8fafc;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body, html {
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+      background-color: var(--bg);
+      color: var(--text);
+    }
+
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      width: 100vw;
+      position: relative;
+    }
+
+    header {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      z-index: 1000;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--card-bg);
+      backdrop-filter: blur(8px);
+      padding: 10px 16px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    }
+
+    .hud-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--primary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .stats-row {
+      display: flex;
+      gap: 16px;
+    }
+
+    .stat-pill {
+      font-size: 0.85rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .stat-pill span {
+      font-size: 1rem;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    #map {
+      flex: 1;
+      width: 100%;
+      height: 100%;
+      background: #0b1329; /* Acts as the dark background now that tiles are removed */
+    }
+
+    .leaflet-interactive {
+      transition: fill 0.2s ease, stroke 0.2s ease, stroke-width 0.2s ease;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(4px);
+      z-index: 2000;
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .bottom-sheet {
+      width: 100%;
+      max-width: 500px;
+      background: var(--card-bg);
+      border-radius: 24px 24px 0 0;
+      padding: 20px;
+      border-top: 1px solid rgba(255, 255, 255, 0.15);
+      transform: translateY(100%);
+      transition: transform 0.25s cubic-bezier(0.1, 0.9, 0.2, 1);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.5);
+    }
+
+    .modal-overlay.active .bottom-sheet {
+      transform: translateY(0);
+    }
+
+    .sheet-title {
+      text-align: center;
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .options-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .choice-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #fff;
+      padding: 14px 10px;
+      border-radius: 12px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+      transition: transform 0.1s active, background 0.2s;
+    }
+
+    .choice-btn:active {
+      transform: scale(0.97);
+      background: rgba(56, 189, 248, 0.25);
+    }
+
+    .meme-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(8px);
+      z-index: 3000;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      text-align: center;
+      animation: popIn 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards;
+    }
+
+    .meme-overlay.active {
+      display: flex;
+    }
+
+    @keyframes popIn {
+      from { opacity: 0; transform: scale(0.85); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    .meme-card {
+      background: var(--card-bg);
+      border-radius: 20px;
+      padding: 20px;
+      width: 100%;
+      max-width: 400px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+    }
+
+    .canvas-container {
+      width: 100%;
+      max-width: 280px;
+      aspect-ratio: 1/1;
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+
+    #memeCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .meme-headline {
+      font-size: 1.25rem;
+      font-weight: 800;
+      margin-bottom: 6px;
+    }
+
+    .fact-container {
+      background: rgba(0, 0, 0, 0.35);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 0.85rem;
+      line-height: 1.4;
+      color: #cbd5e1;
+      margin-bottom: 14px;
+      border-left: 3px solid var(--primary);
+      text-align: left;
+      width: 100%;
+    }
+
+    .fact-header {
+      font-weight: 700;
+      font-size: 0.72rem;
+      color: var(--primary);
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .continue-btn {
+      width: 100%;
+      background: var(--primary);
+      color: #041226;
+      border: none;
+      padding: 12px;
+      font-size: 1rem;
+      font-weight: 700;
+      border-radius: 12px;
+      cursor: pointer;
+    }
+
+    .continue-btn.danger {
+      background: var(--danger);
+      color: #fff;
+    }
+
+    #confettiCanvas {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 2500;
+    }
+  </style>
+</head>
+<body>
+
+<div id="app">
+  <header>
+    <div class="hud-title">North Africa Drill</div>
+    <div class="stats-row">
+      <div class="stat-pill">Found: <span id="foundCount">0</span>/<span id="totalCount">0</span></div>
+      <div class="stat-pill">Streak: <span id="streakCount">0</span> 🔥</div>
+    </div>
+  </header>
+
+  <div id="map"></div>
+
+  <div class="modal-overlay" id="quizModal">
+    <div class="bottom-sheet">
+      <div class="sheet-title">Which country is highlighted?</div>
+      <div class="options-grid" id="optionsGrid"></div>
+    </div>
+  </div>
+
+  <div class="meme-overlay" id="memeModal">
+    <div class="meme-card">
+      <div class="canvas-container">
+        <canvas id="memeCanvas" width="500" height="500"></canvas>
+      </div>
+      <div class="meme-headline" id="memeHeadline">CORRECT!</div>
+      <div class="fact-container" id="factBox">
+        <div class="fact-header">Geo Fact</div>
+        <div id="memeFactText"></div>
+      </div>
+      <button class="continue-btn" id="continueBtn">Next Target</button>
+    </div>
+  </div>
+
+  <canvas id="confettiCanvas"></canvas>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+<script>
+  let audioCtx = null;
+  function initAudio() {
+    if (!audioCtx) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      audioCtx = new AudioCtx();
+    }
+    if (audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+  }
+
+  function playSuccessSound() {
+    initAudio();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(523.25, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(783.99, audioCtx.currentTime + 0.15);
+    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.3);
+  }
+
+  function playFailSound() {
+    initAudio();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(196, audioCtx.currentTime);
+    osc.frequency.linearRampToValueAtTime(98, audioCtx.currentTime + 0.35);
+    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.4);
+  }
+
+  // Curated fact lookup by ISO code
+  const COUNTRY_FACTS = {
+    "MAR": "Home to the University of al-Qarawiyyin in Fez, founded in 859 AD and certified by UNESCO as the oldest operational university in the world.",
+    "DZA": "The largest country in Africa and 10th largest globally; over 80% of its landmass is covered by the Sahara Desert.",
+    "MRT": "Home to the Richat Structure ('Eye of the Sahara'), an immense 40 km circular geological dome visible from space.",
+    "ESH": "A desert territory on the Atlantic coast containing one of the longest continuous conveyor belts in the world, spanning over 60 miles.",
+    "MLI": "Historic crossroads of the trans-Saharan trade routes and home to Timbuktu and the Great Mosque of Djenné.",
+    "NER": "Known as the 'Gateway to the Sahara'; over 80% of its territory is desert, including the dramatic Ténéré dunes.",
+    "TCD": "Home to the volcanic Tibesti Mountains and the prehistoric basin of Lake Chad.",
+    "SDN": "Contains over 200 Nubian pyramids at Meroë, built by the rulers of the Kingdom of Kush—roughly double Egypt's count.",
+    "EGY": "A transcontinental nation bridging Africa and Asia where nearly 95% of the population resides along the fertile Nile corridor.",
+    "LBY": "Constructed the Great Man-Made River, the world's largest irrigation project, tapping into prehistoric fossil aquifers.",
+    "TUN": "Contains the remarkably preserved Roman amphitheatre of El Jem and the underground homes of Matmata."
+  };
+
+  // GeoJSON file with fully validated and closed polygon geometry coordinates
+  const rawGeoData = {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "properties": { "name": "Morocco", "iso_a3": "MAR" },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [[[-2.1699,35.1683],[-1.7929,34.5279],[-1.7334,33.9197],[-1.388,32.864],[-1.1245,32.6515],[-1.3078,32.2628],[-2.6166,32.0943],[-3.0689,31.7244],[-3.6474,31.6372],[-3.6904,30.8969],[-4.8596,30.5011],[-5.2421,30.0004],[-6.0606,29.7316],[-7.0592,29.5792],[-8.6741,28.8412],[-8.6655,27.6564],[-8.8178,27.6564],[-8.7948,27.1206],[-9.413,27.0884],[-9.7353,26.8609],[-10.1894,26.8609],[-10.5512,26.9908],[-11.3925,26.8834],[-11.7182,26.104],[-12.0307,26.0308],[-12.5009,24.7701],[-13.8911,23.691],[-14.2211,22.3101],[-14.6308,21.8609],[-14.7509,21.5006],[-17.0029,21.4207],[-17.0204,21.4223],[-16.9732,21.8857],[-16.5891,22.1582],[-16.2619,22.6793],[-16.3264,23.0177],[-15.9826,23.7233],[-15.426,24.3591],[-15.0893,24.5202],[-14.8246,25.1035],[-14.8009,25.6362],[-14.4399,26.2544],[-13.7738,26.6188],[-13.1399,27.6401],[-13.1216,27.6541],[-12.6188,28.0381],[-11.6889,28.1486],[-10.9009,28.8321],[-10.3995,29.0985],[-9.5648,29.9335],[-9.8147,31.1777],[-9.4347,32.038],[-9.3006,32.5646],[-8.6574,33.2402],[-7.6541,33.697],[-6.9125,34.1104],[-6.2443,35.1458],[-5.9299,35.7599],[-5.1938,35.7551],[-4.591,35.3307],[-3.6400,35.3998],[-2.6043,35.179],[-2.1699,35.1683]]]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": { "name": "Algeria", "iso_a3": "DZA" },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [[[-8.6843,27.3957],[-8.6651,27.5894],[-8.6655,27.6564],[-8.6741,28.8412],[-7.0592,29.5792],[-6.0606,29.7316],[-5.2421,30.0004],[-4.8596,30.5011],[-3.6904,30.8969],[-3.6474,31.6372],[-3.0689,31.7244],[-2.6166,32.0943],[-1.3078,32.2628],[-1.1245,32.6515],[-1.388,32.864],[-1.7334,33.9197],[-1.7929,34.5279],[-2.1699,35.1683],[-1.2086,35.7148],[-0.1274,35.8886],[0.5038,36.3012],[1.4669,36.6056],[3.1616,36.7839],[4.8157,36.865],[5.3201,36.7165],[6.2618,37.1106],[7.3303,37.1183],[7.737,36.8857],[8.4209,36.9464],[8.2178,36.4331],[8.3763,35.4798],[8.1409,34.6551],[7.5244,34.0973],[7.6126,33.3441],[8.4304,32.7483],[8.4391,32.5062],[9.0556,32.1026],[9.4821,30.3075],[9.8056,29.4246],[9.8599,28.9599],[9.6838,28.1441],[9.7561,27.6882],[9.629,27.1409],[9.7162,26.5122],[9.3194,26.0943],[9.9106,25.3654],[9.9482,24.9369],[10.3038,24.3793],[10.7713,24.5625],[11.5606,24.0979],[11.9995,23.4716],[8.5728,21.5656],[5.6775,19.6012],[4.2674,19.1552],[3.1581,19.0573],[3.1466,19.6935],[2.6835,19.8562],[2.0609,20.1422],[1.8232,20.6108],[-1.55,22.7926],[-4.9233,24.9745],[-8.6843,27.3957]]]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": { "name": "Mauritania", "iso_a3": "MRT" },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [[[-17.0634,20.9997],[-16.8451,21.3333],[-12.9291,21.327],[-13.1187,22.7712],[-12.8742,23.2848],[-11.9372,23.3745],[-11.9694,25.9333],[-8.6872,25.881],[-8.6843,27.3957],[-4.9233,24.9745],[-6.4537,24.9565],[-5.9711,20.6408],[-5.4885,16.3251],[-5.3152,16.2018],[-5.5377,15.5016],[-9.5502,15.4864],[-9.7002,15.2641],[-10.0868,15.3304],[-10.6507,15.1327],[-11.349,15.4112],[-11.666,15.3882],[-11.8342,14.799],[-12.1707,14.6168],[-12.8306,15.3036],[-13.4357,16.0393],[-14.0995,16.3043],[-14.5773,16.5982],[-15.1357,16.5872],[-15.6236,16.3693],[-16.1206,16.4556],[-16.463,16.135],[-16.5497,16.6738],[-16.2705,17.1669],[-16.1463,18.1084],[-16.2568,19.0967],[-16.3776,19.5938],[-16.2778,20.0925],[-16.5363,20.5678],[-17.0634,20.9997]]]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": { "name": "Western Sahara", "iso_a3": "ESH" },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [[[-8.6655,27.6564],[-8.6651,27.5894],[-8.6843,27.3957],[-8.6872,25.881],[-11.9694,25.9333],[-11.9372,23.3745],[-12.8742,23.2848],[-13.1187,22.7712],[-12.9291,21.327],[-16.8451,21.3333],[-17.0634,20.9997],[-17.0204,21.4223],[-17.0029,21.4207],[-14.7509,21.5006],[-14.6308,21.8609],[-14.2211,22.3101],[-13.8911,23.691],[-12.5009,24.7701],[-12.0307,26.0308],[-11.7182,26.104],[-11.3925,26.8834],[-10.5512,26.9908],[-10.1894,26.8609],[-9.7353,26.8609],[-9.413,27.0884],[-8.7948,27.1206],[-8.8178,27.6564],[-8.6655,27.6564]]]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": { "name": "Mali", "iso_a3": "MLI" },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [[[-11.5139,12.4429],[-11.4678,12.7545],[-11.5533,13.1412],[-11.9277,13.422],[-12.1248,13.9947],[-12.1707,14.6168],[-11.8342,14.799],[-11.666,15.3882],[-11.349,15.4112],[-10.6507,15.1327],[-10.0868,15.3304],[-9.7002,15.2641],[-9.5502,15.4864],[-5.5377,15.5016],[-5.3152,16.2018],[-5.4885,16.3251],[-5.9711,20.6408],[-6.4537,24.9565],[-4.9233,24.9745],[-1.55,22.7926],[1.8232,20.6108],[2.0609,20.1422],[2.6835,19.8562],[3.1466,19.6935],[3.1581,19.0573],[4.2674,19.1552],[4.2702,16.8522],[3.7234,16.1842],[3.6382,15.5681],[2.7499,15.4095],[1.3855,15.3235],[1.0157,14.9681],[0.3748,14.9289],[-0.2662,14.9243],[-0.5158,15.1161],[-1.0663,14.9738],[-2.001,14.559],[-2.1918,14.2464],[-2.9676,13.7981],[-3.1037,13.5412],[-3.5228,13.3376],[-4.0063,13.4724],[-4.2804,13.2284],[-4.4271,12.5426],[-5.2209,11.7138],[-5.1978,11.3751],[-5.4705,10.9512],[-5.4043,10.3707],[-5.8169,10.2225],[-6.0504,10.0963],[-6.2052,10.524],[-6.4939,10.4113],[-6.6664,10.4308],[-6.8505,10.1389],[-7.6227,10.1472],[-7.8995,10.2973],[-8.0299,10.2065],[-8.3353,10.4948],[-8.2823,10.7925],[-8.4073,10.9092],[-8.6203,10.8108],[-8.5813,11.1362],[-8.3763,11.3936],[-8.786,11.8125],[-8.9052,12.0883],[-9.1274,12.308],[-9.3276,12.3342],[-9.5679,12.1942],[-9.8909,12.0604],[-10.1652,11.844],[-10.5932,11.9239],[-10.8708,12.1778],[-11.0365,12.2112],[-11.2975,12.0779],[-11.4561,12.0768],[-11.5139,12.4429]]]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": { "name": "Niger", "iso_a3": "NER" },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [[[14.8513,22.8629],[15.0968,21.3085],[15.471,21.0484],[15.4871,20.7304],[15.9032,20.3876],[15.6857,19.9571],[15.3004,17.9279],[15.2477,16.6273],[13.9721,15.6843],[13.5403,14.3671],[13.9566,13.9966],[13.9544,13.3534],[14.5957,13.3304],[14.4957,12.8593],[14.2135,12.802],[14.1813,12.4836],[13.9953,12.4615],[13.3187,13.5563],[13.0839,13.5961],[12.302,13.0371],[11.5278,13.3289],[10.9895,13.3873],[10.701,13.2469],[10.1148,13.2772],[9.5249,12.8511],[9.0149,12.8266],[7.8046,13.3435],[7.3307,13.098],[6.8204,13.115],[6.4454,13.4927],[5.443,13.8659],[4.3683,13.7474],[4.1079,13.5312],[3.9672,12.9561],[3.6806,12.5529],[3.6111,11.6601],[2.8486,12.2356],[2.4901,12.233],[2.1544,11.9401],[2.1771,12.625],[1.0241,12.8518],[0.993,13.3357],[0.4299,13.9887],[0.2956,14.4442],[0.3748,14.9289],[1.0157,14.9681],[1.3855,15.3235],[2.7499,15.4095],[3.6382,15.5681],[3.7234,16.1842],[4.2702,16.8522],[4.2674,19.1552],[5.6775,19.6012],[8.5728,21.5656],[11.9995,23.4716],[13.5814,23.0405],[14.1438,22.4912],[14.8513,22.8629]]]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": { "name": "Chad", "iso_a3": "TCD" },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [[[23.8376,19.5804],[23.8868,15.6108],[23.0245,15.6807],[22.5679,14.9442],[22.3035,14.3268],[22.512,14.0931],[22.1832,13.7864],[22.2965,13.3723],[22.0375,12.9554],[21.9368,12.5881],[22.288,12.646],[22.4976,12.2602],[22.5086,11.6793],[22.8762,11.3846],[22.8641,11.1423],[22.2311,10.9718],[21.7238,10.567],[21.0008,9.4759],[20.0596,9.0127],[19.094,9.0748],[18.812,8.9829],[18.911,8.6308],[18.3895,8.2813],[17.9649,7.8909],[16.7059,7.5083],[16.4561,7.7347],[16.2905,7.7543],[16.1062,7.497],[15.2794,7.4219],[15.436,7.6928],[15.1208,8.3821],[14.9799,8.7961],[14.5444,8.9658],[13.9542,9.5494],[14.1714,10.0213],[14.6272,9.9209],[14.9093,9.9921],[15.4678,9.9823],[14.9235,10.8913],[14.9601,11.5555],[14.8933,12.219],[14.4957,12.8593],[14.5957,13.3304],[13.9544,13.3534],[13.9566,13.9966],[13.5403,14.3671],[13.9721,15.6843],[15.2477,16.6273],[15.3004,17.9279],[15.6857,19.9571],[15.9032,20.3876],[15.4871,20.7304],[15.471,21.0484],[15.0968,21.3085],[14.8513,22.8629],[15.8608,23.4097],[19.8492,21.495],[23.8376,19.5804]]]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": { "name": "Sudan", "iso_a3": "SDN" },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [[[24.5673,8.2291],[23.8058,8.6663],[23.459,8.9542],[23.3947,9.265],[23.5572,9.6812],[23.5543,10.0892],[22.9775,10.7144],[22.8641,11.1423],[22.8762,11.3846],[22.5086,11.6793],[22.4976,12.2602],[22.288,12.646],[21.9368,12.5881],[22.0375,12.9554],[22.2965,13.3723],[22.1832,13.7864],[22.512,14.0931],[22.3035,14.3268],[22.5679,14.9442],[23.0245,15.6807],[23.8868,15.6108],[23.8376,19.5804],[23.85,20],[25,20.003],[25,22],[29.02,22],[32.9,22],[36.8662,22],[37.1887,21.0188],[36.9694,20.8374],[37.1147,19.8079],[37.4817,18.614],[37.8627,18.3678],[38.41,17.9983],[37.904,17.4275],[37.1674,17.2631],[36.8525,16.9565],[36.7538,16.2918],[36.3232,14.8224],[36.4295,14.4221],[36.2702,13.5633],[35.8636,12.5782],[35.2604,12.0828],[34.8316,11.3189],[34.7311,10.9101],[34.2574,10.6300],[33.9616,9.5835],[33.9749,8.6845],[33.9633,9.4642],[33.8249,9.484],[33.8421,9.9819],[33.7219,10.3252],[33.2069,10.7201],[33.0867,11.4411],[33.2069,12.1793],[32.7434,12.248],[32.6747,12.0248],[32.0738,11.9733],[32.3142,11.6814],[32.4000,11.0806],[31.8507,10.5312],[31.3528,9.8102],[30.8378,9.7072],[29.9966,10.2909],[29.6189,10.0849],[29.5159,9.793],[29.0009,9.6042],[28.9665,9.3982],[27.9708,9.3982],[27.8335,9.6042],[27.1125,9.6385],[26.752,9.4668],[26.4773,9.5527],[25.9623,10.1364],[25.7906,10.411],[25.0696,10.2737],[24.7949,9.8102],[24.5374,8.9175],[24.194,8.7286],[23.8869,8.6197],[24.5673,8.2291]]]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": { "name": "Egypt", "iso_a3": "EGY" },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [[[36.8662,22],[32.9,22],[29.02,22],[25,22],[25,25.6825],[25,29.2386],[24.7001,30.0442],[24.9576,30.6616],[24.8028,31.0893],[25.1648,31.5691],[26.4953,31.5857],[27.4576,31.3212],[28.4504,31.0257],[28.9135,30.87],[29.6834,31.1868],[30.095,31.4734],[30.9769,31.5558],[31.6879,31.4296],[31.9604,30.9336],[32.1924,31.2603],[32.9939,31.024],[33.7734,30.9674],[34.2654,31.2193],[34.8232,29.761],[34.9226,29.5013],[34.6417,29.0994],[34.4265,28.3439],[34.1545,27.8233],[33.9213,27.6487],[33.5881,27.9713],[33.1367,28.4176],[32.4232,29.851],[32.3204,29.7604],[32.7348,28.7052],[33.3487,27.6998],[34.1045,26.1422],[34.4738,25.5985],[34.795,25.0337],[35.6924,23.9267],[35.4937,23.7523],[35.5259,23.1024],[36.6906,22.2048],[36.8662,22]]]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": { "name": "Libya", "iso_a3": "LBY" },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [[[25,22],[25,20.003],[23.85,20],[23.8376,19.5804],[19.8492,21.495],[15.8608,23.4097],[14.8513,22.8629],[14.1438,22.4912],[13.5814,23.0405],[11.9995,23.4716],[11.5606,24.0979],[10.7713,24.5625],[10.3038,24.3793],[9.9482,24.9369],[9.9106,25.3654],[9.3194,26.0943],[9.7162,26.5122],[9.629,27.1409],[9.7561,27.6882],[9.6838,28.1441],[9.8599,28.9599],[9.8056,29.4246],[9.4821,30.3075],[9.97,30.5393],[10.0565,30.9618],[9.9502,31.376],[10.6369,31.7614],[10.9447,32.0818],[11.4322,32.3689],[11.4887,33.1369],[12.6633,32.7927],[13.0832,32.8788],[13.9186,32.7119],[15.2456,32.265],[15.7139,31.3762],[16.6116,31.1821],[18.021,30.7635],[19.0864,30.2663],[19.574,30.5258],[20.0533,30.9857],[19.8203,31.7517],[20.1339,32.2382],[20.8545,32.7068],[21.5429,32.8432],[22.8957,32.6385],[23.2368,32.1914],[23.6091,32.1872],[23.9275,32.0166],[24.9211,31.8993],[25.1648,31.5691],[24.8028,31.0893],[24.9576,30.6616],[24.7001,30.0442],[25,29.2386],[25,25.6825],[25,22]]]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": { "name": "Tunisia", "iso_a3": "TUN" },
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [[[9.4821,30.3075],[9.0556,32.1026],[8.4391,32.5062],[8.4304,32.7483],[7.6126,33.3441],[7.5244,34.0973],[8.1409,34.6551],[8.3763,35.4798],[8.2178,36.4331],[8.4209,36.9464],[9.51,37.35],[10.21,37.23],[10.1806,36.724],[11.0288,37.0921],[11.1,36.9],[10.6,36.41],[10.5932,35.9474],[10.9395,35.6989],[10.8078,34.8335],[10.1495,34.3307],[10.3396,33.7857],[10.8568,33.7687],[11.1085,33.2933],[11.4887,33.1369],[11.4322,32.3689],[10.9447,32.0818],[10.6369,31.7614],[9.9502,31.376],[10.0565,30.9618],[9.97,30.5393],[9.4821,30.3075]]]
+        }
+      }
+    ]
+  };
+
+  // Dynamically extract all unique country names from the GeoJSON features
+  const ALL_COUNTRY_NAMES = [...new Set(rawGeoData.features.map(f => f.properties.name))];
+  document.getElementById('totalCount').innerText = ALL_COUNTRY_NAMES.length;
+
+  let streak = 0;
+  let solvedCountries = new Set();
+  let activeFeature = null;
+  let geoJsonLayer = null;
+
+  // Initialize Leaflet Map without external tile layers (Carto API removed)
+  const map = L.map('map', {
+    zoomControl: false,
+    attributionControl: false,
+    minZoom: 3,
+    maxZoom: 7,
+    crs: L.CRS.EPSG3857
+  });
+
+  function styleFeature(feature) {
+    const isSolved = solvedCountries.has(feature.properties.name);
+    return {
+      fillColor: isSolved ? '#22c55e' : '#38bdf8',
+      weight: 2,
+      opacity: 1,
+      color: '#0f172a',
+      fillOpacity: isSolved ? 0.65 : 0.35
+    };
+  }
+
+  function renderMapLayers() {
+    if (geoJsonLayer) map.removeLayer(geoJsonLayer);
+
+    geoJsonLayer = L.geoJSON(rawGeoData, {
+      style: styleFeature,
+      onEachFeature: (feature, layer) => {
+        layer.on('click', () => {
+          if (solvedCountries.has(feature.properties.name)) return;
+          triggerQuestion(feature);
+        });
+      }
+    }).addTo(map);
+
+    map.fitBounds(geoJsonLayer.getBounds(), { padding: [20, 20] });
+  }
+
+  renderMapLayers();
+
+  // Bottom Sheet Selection Modal
+  const quizModal = document.getElementById('quizModal');
+  const optionsGrid = document.getElementById('optionsGrid');
+
+  function triggerQuestion(feature) {
+    initAudio();
+    activeFeature = feature;
+    const correctName = feature.properties.name;
+
+    // Pull distractor choices dynamically from the parsed country names
+    const distractors = ALL_COUNTRY_NAMES.filter(n => n !== correctName);
+    const shuffledDistractors = distractors.sort(() => 0.5 - Math.random()).slice(0, 3);
+    const choices = [...shuffledDistractors, correctName].sort(() => 0.5 - Math.random());
+
+    optionsGrid.innerHTML = '';
+    choices.forEach(choice => {
+      const btn = document.createElement('button');
+      btn.className = 'choice-btn';
+      btn.innerText = choice;
+      btn.onclick = () => handleAnswer(choice);
+      optionsGrid.appendChild(btn);
+    });
+
+    quizModal.classList.add('active');
+  }
+
+  function handleAnswer(selectedChoice) {
+    quizModal.classList.remove('active');
+    const correct = activeFeature.properties.name;
+
+    if (selectedChoice === correct) {
+      handleSuccess();
+    } else {
+      handleFailure(selectedChoice);
+    }
+  }
+
+  // Meme Generation
+  const memeCanvas = document.getElementById('memeCanvas');
+  const ctx = memeCanvas.getContext('2d');
+
+  const SUCCESS_MEMES = [
+    { title: "GIGACHAD BRAIN", sub: "GEOGRAPHY IQ OVER 9000", bg: "#1e293b", emoji: "🗿" },
+    { title: "SUCCESS KID", sub: "CLICKED ONCE. GOT IT RIGHT.", bg: "#0f766e", emoji: "👶" },
+    { title: "BIG BRAIN TIME", sub: "HARVARD WANTS TO KNOW YOUR LOCATION", bg: "#4338ca", emoji: "🧠" }
+  ];
+
+  const FAIL_MEMES = [
+    { title: "EMOTIONAL DAMAGE", sub: "STREAK RESET TO ZERO!", bg: "#7f1d1d", emoji: "💀" },
+    { title: "FACEPALM", sub: "THAT WAS NOT EVEN CLOSE", bg: "#831843", emoji: "🤦" },
+    { title: "BRUH MOMENT", sub: "BACK TO THE STARTING LINE", bg: "#374151", emoji: "📉" }
+  ];
+
+  function drawMeme(meme) {
+    ctx.fillStyle = meme.bg;
+    ctx.fillRect(0, 0, 500, 500);
+
+    const grad = ctx.createRadialGradient(250, 250, 80, 250, 250, 300);
+    grad.addColorStop(0, 'rgba(255,255,255,0.05)');
+    grad.addColorStop(1, 'rgba(0,0,0,0.6)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 500, 500);
+
+    ctx.font = '140px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(meme.emoji, 250, 250);
+
+    ctx.font = '900 36px Impact, sans-serif';
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 5;
+
+    ctx.strokeText(meme.title, 250, 60);
+    ctx.fillText(meme.title, 250, 60);
+
+    ctx.font = '900 24px Impact, sans-serif';
+    ctx.strokeText(meme.sub, 250, 440);
+    ctx.fillText(meme.sub, 250, 440);
+  }
+
+  function handleSuccess() {
+    playSuccessSound();
+    solvedCountries.add(activeFeature.properties.name);
+    streak++;
+    updateHUD();
+    renderMapLayers();
+    triggerConfetti();
+
+    const meme = SUCCESS_MEMES[Math.floor(Math.random() * SUCCESS_MEMES.length)];
+    drawMeme(meme);
+
+    const iso = activeFeature.properties.iso_a3;
+    const fact = COUNTRY_FACTS[iso] || "Outstanding geographical recall!";
+
+    document.getElementById('memeHeadline').innerText = `CORRECT: ${activeFeature.properties.name.toUpperCase()}!`;
+    document.getElementById('memeHeadline').style.color = 'var(--accent)';
+    document.getElementById('memeFactText').innerText = fact;
+    document.getElementById('factBox').style.display = 'block';
+
+    const btn = document.getElementById('continueBtn');
+    btn.innerText = solvedCountries.size === ALL_COUNTRY_NAMES.length ? 'VICTORY! PLAY AGAIN' : 'CONTINUE';
+    btn.className = 'continue-btn';
+    btn.onclick = () => {
+      document.getElementById('memeModal').classList.remove('active');
+      if (solvedCountries.size === ALL_COUNTRY_NAMES.length) {
+        resetGame();
+      }
+    };
+
+    document.getElementById('memeModal').classList.add('active');
+  }
+
+  function handleFailure(wrongGuess) {
+    playFailSound();
+    const correct = activeFeature.properties.name;
+
+    const meme = FAIL_MEMES[Math.floor(Math.random() * FAIL_MEMES.length)];
+    drawMeme(meme);
+
+    document.getElementById('memeHeadline').innerText = `WRONG! THAT WAS ${correct.toUpperCase()}`;
+    document.getElementById('memeHeadline').style.color = 'var(--danger)';
+    document.getElementById('memeFactText').innerText = `You selected ${wrongGuess}. Test rules: Miss one, and the streak resets to 0!`;
+    document.getElementById('factBox').style.display = 'block';
+
+    const btn = document.getElementById('continueBtn');
+    btn.innerText = 'START OVER (STREAK RESET)';
+    btn.className = 'continue-btn danger';
+    btn.onclick = () => {
+      document.getElementById('memeModal').classList.remove('active');
+      resetGame();
+    };
+
+    document.getElementById('memeModal').classList.add('active');
+  }
+
+  function resetGame() {
+    streak = 0;
+    solvedCountries.clear();
+    updateHUD();
+    renderMapLayers();
+  }
+
+  function updateHUD() {
+    document.getElementById('foundCount').innerText = solvedCountries.size;
+    document.getElementById('streakCount').innerText = streak;
+  }
+
+  // Confetti Particle System
+  const confettiCanvas = document.getElementById('confettiCanvas');
+  const confCtx = confettiCanvas.getContext('2d');
+  let particles = [];
+
+  function resizeConfetti() {
+    confettiCanvas.width = window.innerWidth;
+    confettiCanvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resizeConfetti);
+  resizeConfetti();
+
+  function triggerConfetti() {
+    particles = Array.from({ length: 70 }, () => ({
+      x: window.innerWidth / 2,
+      y: window.innerHeight / 2,
+      vx: (Math.random() - 0.5) * 12,
+      vy: (Math.random() - 0.8) * 12,
+      size: Math.random() * 8 + 4,
+      color: ['#38bdf8', '#22c55e', '#f59e0b', '#ec4899'][Math.floor(Math.random() * 4)],
+      alpha: 1
+    }));
+  }
+
+  function updateConfetti() {
+    confCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+    particles.forEach((p) => {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.25;
+      p.alpha -= 0.015;
+      confCtx.globalAlpha = Math.max(0, p.alpha);
+      confCtx.fillStyle = p.color;
+      confCtx.fillRect(p.x, p.y, p.size, p.size);
+    });
+    particles = particles.filter(p => p.alpha > 0);
+    requestAnimationFrame(updateConfetti);
+  }
+  updateConfetti();
+</script>
+</body>
+</html>
